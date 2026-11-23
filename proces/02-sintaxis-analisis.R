@@ -31,30 +31,22 @@ orden_medios <- c("bbcl", "emol", "mediosregionales")
 
 
 
-# ---- PASO 3 · Elegir la pregunta y su diccionario de semillas ----------
-# Hay cuatro preguntas. Cada grupo elige UNA (ver la pauta). Cada diccionario es
-# una hipótesis: "estas palabras indican este concepto". Pueden AGREGAR o QUITAR
-# palabras (máximo 5 cambios por lista), pero deben justificarlo en el informe.
+# ---- PASO 3 · Diccionario de semillas ----------
+# Hipótesis temática: contrastamos el encuadre cultural (música urbana) y etario
+# (violencia juvenil) frente al encuadre criminalístico/policial estándar.
+
+dic_prensa <- dictionary(list(
+  musica_urbana = c("música_urbana", "musica_urbana", "género_urbano", "genero_urbano",
+                    "cantante_urbano", "cantantes_urbanos", "artista_urbano", "artistas_urbanos",
+                    "escena_urbana", "trap", "reggaetón", "reggaeton", "reguetón", "videoclip*", 
+                    "narcocultura"),
+  violencia_juvenil = c("menor_de_edad", "menores_de_edad", "adolescent*", "jóvenes", "joven",
+                        "escolar*", "liceo*", "colegio*", "pandilla*", "inimputable*")
+))
 
 
-# C. Memoria y transición  (el pasado dictatorial y la política de los acuerdos)
-
-#Se realizan cambios a diccionario de semillas original, se borra valech y rettig
-# por tener frecuencia = 0, se agrega exilio y se cambia reparación, tortura y 
-# desaparecidos por reparaci*, tortura* y desapar* respectivamente
-# En transición se agrega democracia y concertación, se borra acuerdos por ser 
-# muy general
-
-dic_C <- dictionary(list(
-  memoria    = c("derechos_humanos", "reconciliación", "verdad", "víctimas",
-                 "memoria", "detenidos_desaparecidos", "tortura*",
-                 "reparaci*", "exilio", "desapar*"),
-  transicion = c("consenso*", "transición", "gobernabilidad",
-                 "diálogo", "unidad", "convivencia", "paz", "entendimiento", 
-                 "democracia", "concertación")))
-
-dic <- dic_C         # >>> CAMBIAR AQUÍ <<<  dic_A, dic_B, dic_C o dic_D
-marcos <- names(dic)  # los nombres de sus tópicos sembrados
+dic <- dic_prensa
+marcos <- names(dic)
 dic
 
 # ¿Qué palabras de la matriz calzan con cada lista? ¡Revíselo siempre!
@@ -69,14 +61,15 @@ semillas <- featnames(dfm_select(dtm, pattern = dic))
 #kwic(toks, pattern = c("derechos_humanos"), case_insensitive = TRUE)
 
 # ---- PASO 4 · Estimar el modelo de tópicos semillado --------------------
-# residual = 15: además de sus tópicos sembrados, 15 tópicos libres para todo
-# lo demás (salud, vivienda, política exterior...). Con pocos tópicos libres,
-# los sembrados se "tragan" palabras ajenas. Tarda alrededor de 1 minuto.
-set.seed(2026)                                   # >>> puede cambiarla en el Paso 7d
-slda <- textmodel_seededlda(dtm, dictionary = dic, residual = 15)
-saveRDS(slda, "slda_taller3.rds")   # guárdelo: lo necesitarán para reproducir sus cifras
+# residual = 12: además de sus tópicos sembrados, 12 tópicos libres para todo
+# lo demás
+
+set.seed(2026)                                   
+slda <- textmodel_seededlda(dtm, dictionary = dic, residual = 12)
+saveRDS(slda, "input/slda_prensa_urbana.rds")  
+
 # Para volver a cargarlo otro día sin estimarlo de nuevo:
-# slda <- readRDS("slda_taller3.rds")
+# slda <- readRDS("input/slda_prensa_urbana.rds")
 
 
 # ---- PASO 5 · Interpretar: semillas y palabras descubiertas -------------
@@ -85,73 +78,75 @@ terms(slda, 15)[, marcos]     # las 15 palabras más probables de sus tópicos
 # Las palabras que el modelo AGREGÓ (entre las 20 más probables, sin ser semillas)
 top20 <- terms(slda, 20)
 for (m in marcos) cat("\n", m, "->", paste(setdiff(top20[, m], semillas), collapse = ", "), "\n")
+
 # Pregunta para el informe: ¿las palabras descubiertas confirman su concepto,
 # lo amplían o muestran que el tópico mide OTRA cosa?
 
 
 # ---- PASO 6 · Medir: ¿cuánto pesa cada tópico, en quién y cuándo? -------
 theta <- slda$theta
-gob   <- factor(docvars(dtm, "gobierno"), levels = orden_gob)
+gob   <- factor(docvars(dtm, "medio"), levels = orden_medios)
 anio  <- docvars(dtm, "anio")
 
-# a) Peso promedio (theta, en %) por gobierno
-prev_gob <- aggregate(theta[, marcos, drop = FALSE], by = list(gobierno = gob), FUN = mean)
-prev_gob[, marcos] <- round(prev_gob[, marcos] * 100, 1)
-prev_gob
+# a) Peso promedio (theta, en %) por medio de comunicación
+prev_medio <- aggregate(theta[, marcos, drop = FALSE], by = list(medio = medio), FUN = mean)
+prev_medio[, marcos] <- round(prev_medio[, marcos] * 100, 2)
+prev_medio
 
-# b) % de párrafos cuyo tópico PRINCIPAL es cada uno de sus tópicos
+# b) % de párrafos cuyo tópico PRINCIPAL es cada uno de los tópicos sembrados
 principal <- topics(slda)
-round(prop.table(table(gob, principal), 1)[, marcos] * 100, 1)
+round(prop.table(table(medio, principal), 1)[, marcos] * 100, 2)
 
-# c) Gráfico por año (una línea por tópico sembrado)
+# c) Gráfico por año (2022-2025)
 prev_anio <- aggregate(theta[, marcos, drop = FALSE], by = list(anio = anio), FUN = mean)
 colores <- c("#4E3239", "#2A5260", "#9FB4BD")[seq_along(marcos)]
+
 matplot(prev_anio$anio, prev_anio[, marcos] * 100, type = "b", pch = 19, lty = 1,
-        col = colores, xlab = "Año", ylab = "Peso promedio del tópico (%)")
-legend("topleft", marcos, col = colores, lty = 1, pch = 19, bty = "n")
-abline(v = c(1993.5, 1999.5, 2005.5, 2009.5, 2013.5, 2017.5, 2021.5, 2025.5),
-       lty = 3, col = "grey60")             # cambios de gobierno
-# Para guardarlo: en la pestaña Plots, Export > Save as Image...
+        col = colores, xlab = "Año", ylab = "Peso promedio del tópico (%)",
+        main = "Prevalencia de marcos en noticias de delitos armados (2022-2025)",
+        xaxt = "n")
+axis(1, at = prev_anio$anio, labels = prev_anio$anio)
+legend("topright", marcos, col = colores, lty = 1, pch = 19, bty = "n")
 
-# d) Solo las PRIMERAS cuentas de cada mandato (la comparación más justa con Kast,
-#    que tiene una sola).
-primeras <- docvars(dtm, "primera_cuenta") == "sí"
-prev_primeras <- aggregate(theta[primeras, marcos, drop = FALSE],
-                           by = list(gobierno = gob[primeras]), FUN = mean)
-prev_primeras[, marcos] <- round(prev_primeras[, marcos] * 100, 1)
-prev_primeras
 
-# e) Contraste teoría-first: el diccionario solo (palabras por cada 1.000)
-cuenta_dic <- dfm_group(dfm_lookup(dtm, dic), groups = gobierno)
-total_gob  <- ntoken(dfm_group(dtm, groups = gobierno))
-round(as.matrix(cuenta_dic) / total_gob * 1000, 1)[orden_gob, ]
+# d) Contraste teoría-first: el diccionario solo (palabras por cada 1.000)
+cuenta_dic  <- dfm_group(dfm_lookup(dtm, dic), groups = medio)
+total_medio <- ntoken(dfm_group(dtm, groups = medio))
+round(as.matrix(cuenta_dic) / total_medio * 1000, 2)[orden_medios, ]
 
 
 # ---- PASO 7 · Validar ------------------------------------------------------
-m <- marcos[1]   # >>> CAMBIAR AQUÍ <<<  el tópico que van a validar (marcos[1] o marcos[2]...)
+m <- "musica_urbana"   #validación de tópico central
 
-# a) Los 5 párrafos más típicos del tópico (theta más alto): ¿tratan de lo que dice su nombre?
 for (i in order(theta[, m], decreasing = TRUE)[1:5]) {
-  cat("\n#", names(texto)[i], " theta =", round(theta[i, m], 2), "\n", texto[i], "\n")
+  cat("\n#", names(texto)[i], " (", docvars(dtm, "medio")[i], docvars(dtm, "anio")[i], ")",
+      " theta =", round(theta[i, m], 3), "\n", substr(texto[i], 1, 500), "...\n")
 }
 
 # b) Muestra al azar para CODIFICAR A MANO: 20 párrafos cuyo tópico principal es m.
 #    Se guarda en un archivo .csv que pueden abrir en Excel. En la columna
 #    "codigo" escriban 1 (sí trata del concepto), 0 (no) o 9 (duda).
-set.seed(3)                                       # no la cambien: así su muestra es reproducible
-candidatos <- which(principal == m)
-elegidos <- sample(candidatos, min(20, length(candidatos)))
-muestra <- data.frame(parrafo = names(texto)[elegidos],
-                      gobierno = gob[elegidos],
-                      theta = round(theta[elegidos, m], 2),
-                      texto = texto[elegidos],
-                      codigo = "")
-write.csv(muestra, paste0("muestra_validacion_", m, ".csv"), row.names = FALSE,
+
+#    (Como musica_urbana puede ser un tópico minoritario en el total policial, tomamos las
+#     noticias donde es tópico principal o está en el percentil superior de theta)
+
+set.seed(2026)
+candidatos <- which(principal == m | theta[, m] >= quantile(theta[, m], 0.98))
+elegidos <- sample(candidatos, min(25, length(candidatos)))
+
+muestra <- data.frame(
+  noticia = names(texto)[elegidos],
+  medio   = medio[elegidos],
+  anio    = anio[elegidos],
+  theta   = round(theta[elegidos, m], 3),
+  texto   = texto[elegidos],
+  atribuye_violencia = ""  # Codificar en Excel: 1 = atribuye violencia a música urbana, 0 = no atribuye
+)
+
+write.csv(muestra, "output/muestra_validacion_musica_urbana.csv", row.names = FALSE,
           fileEncoding = "UTF-8")
-# Después de codificar en Excel, guárdenlo como .csv y léanlo de vuelta:
-cod <- read.csv(paste0("muestra_validacion_", m, ".csv"), encoding = "UTF-8")
-mean(cod$codigo == 1)                         # precisión: proporción de "sí"
-tapply(cod$codigo == 1, cod$theta >= 0.4, mean) # ¿mejora con theta alto?
+
+
 
 
 # c) Una palabra AMBIGUA en contexto (como "seguridad" en la Sesión 9)
