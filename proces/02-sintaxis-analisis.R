@@ -7,62 +7,28 @@ rm(list=ls())
 
 # ---- PASO 0 · Paquetes -------------------------------------------------
 # Los mismos de las sesiones 8, 9 y 10. Si falta alguno, quite el # y corra UNA vez:
-# install.packages(c("quanteda", "seededlda", "readtext", "quanteda.textplots"))
+install.packages(c("quanteda", "seededlda", "readtext", "quanteda.textplots"))
+
 library(quanteda)
 library(seededlda)
 library(readtext)
 library(quanteda.textplots)
 
 getwd()                                          
-file.exists("corpus_prensa_2022_2025.csv")       
+file.exists("input/corpus_prensa_proc.rds")       #TRUE
 
-# ---- PASO 1 · Leer el corpus y sus metadatos --------------------------
-datos_prensa <- readRDS("corpus_prensa_2022_2025.rds")
-names(datos_prensa)
-# Metadatos: una fila por cuenta pública (año, presidente, gobierno, coalición,
-# sector, n° de cuenta dentro del mandato, si es la primera y n° de palabras)
-meta <- read.csv("metadatos_cuentas_1990_2026.csv", encoding = "UTF-8")
-head(meta)
-# Unimos texto y metadatos por el nombre del archivo
-cuentas <- merge(cuentas, meta, by.x = "doc_id", by.y = "archivo")
-cuentas$text <- gsub("([[:alpha:]])-\\s*\n\\s*", "\\1", cuentas$text)  # palabras cortadas con guion
-cuentas$text <- gsub("[ \t]+", " ", cuentas$text)                       # espacios dobles
+# ---- PASO 1 · Leer el corpus, unidad de analisis y DFM --------------------------
+# Cargar objetos ya limpios y tokenizados desde el Script 1
+corp     <- readRDS("corp_prensa_valido.rds")
+toks     <- readRDS("toks_prensa.rds")
+toks_sin <- readRDS("toks_sin_prensa.rds")
+dtm      <- readRDS("dtm_prensa_urbana.rds")
 
-# El orden de los gobiernos (para que las tablas y gráficos salgan en orden histórico)
-orden_gob <- c("Aylwin", "Frei", "Lagos", "Bachelet I", "Piñera I",
-               "Bachelet II", "Piñera II", "Boric", "Kast")
+texto        <- as.character(corp)
+orden_medios <- c("bbcl", "emol", "mediosregionales")
 
 
-# ---- PASO 2 · Párrafos y matriz documento-término ----------------------
-# La unidad de análisis es el PÁRRAFO, como en lo vimos en clases (Unidad V).
-corp <- corpus(cuentas)
-docnames(corp) <- paste(corp$gobierno, corp$anio, sep = "_")
-corp_par <- corpus_reshape(corp, to = "paragraphs")
-corp_par <- corpus_subset(corp_par, ntoken(tokens(corp_par)) >= 10)  # fuera párrafos < 10 palabras
-corp_par <- corpus_subset(corp_par, grepl("[a-záéíóúñ]", corp_par))  # fuera títulos en mayúsculas
-ndoc(corp_par)                                      # unos 11.150 párrafos
-table(factor(corp_par$gobierno, levels = orden_gob))  # ¡ojo! Kast tiene muy pocos (una sola cuenta)
-texto <- as.character(corp_par)                     # el texto de cada párrafo, para leer
 
-# Expresiones de varias palabras que tratamos como una sola (agregue las suyas)
-compuestos <- c("derechos humanos", "crimen organizado", "fuerzas armadas",
-                "seguridad social", "seguridad pública", "seguridad ciudadana",
-                "derechos sociales", "clase media", "medio ambiente",
-                "cambio climático", "crisis climática", "pueblos originarios",
-                "pueblos indígenas", "estallido social", "estado de derecho",
-                "orden público", "detenidos desaparecidos", "protección social",
-                "crecimiento económico", "nueva constitución", "libre mercado")
-
-toks <- tokens(corp_par, remove_punct = TRUE, remove_numbers = TRUE,
-               remove_symbols = TRUE) |>
-  tokens_tolower() |>
-  tokens_compound(phrase(compuestos))
-toks_sin <- tokens_remove(toks, stopwords("es"))
-
-dtm <- dfm(toks_sin)
-dtm <- dfm_trim(dtm, min_termfreq = 5)   # palabras que aparecen 5 o más veces
-dtm                                      # unos 11.150 párrafos x 7.200 palabras
-topfeatures(dtm, 30)
 
 
 # ---- PASO 3 · Elegir la pregunta y su diccionario de semillas ----------

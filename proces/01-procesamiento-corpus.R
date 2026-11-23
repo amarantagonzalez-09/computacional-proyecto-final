@@ -80,20 +80,18 @@ toks <- tokens(corp_valido,
                remove_url     = TRUE)
 toks <- tokens_tolower(toks)
 
-# Expresiones de varias palabras que funcionan como una sola
-toks <- tokens_compound(toks, phrase(c(
+# 4.1. Frases musicales que se relacionan al género urbano
+frases_musicales <- c(
   "música urbana", "musica urbana",
   "género urbano", "genero urbano",
-  "cantante urbano", "cantantes urbanos",
-  "artista urbano", "artistas urbanos",
-  "robo armado", "robos armados",
-  "arma de fuego", "armas de fuego",
-  "menor de edad", "menores de edad")))
-
-# 2. Frases geográficas/viales que son RUIDO (se unen para que no se confundan con "urbano/a" suelto)
+  "cantante urbano", "cantantes urbanos", "cantante urbana",
+  "artista urbano", "artistas urbanos", "artista urbana",
+  "escena urbana", "movimiento urbano", "exponente urbano", "exponentes urbanos"
+)
+# 4.2. Frases urbanas que son RUIDO (se unen para que no se confundan con "urbano/a" suelto)
 # esto se aplica posterior a la revisión del kwic, donde se ve la utilización de "urbano" con este significado
 
-frases_ruido_urbano <- c(
+  frases_ruido_urbano <- c(
   "zona urbana", "zonas urbanas",
   "área urbana", "area urbana", "áreas urbanas",
   "radio urbano", "sector urbano", "sectores urbanos",
@@ -113,8 +111,8 @@ ruido_prensa <- c(stopwords("es"), "lee", "también", "además", "tras", "según
 toks_sin <- tokens_remove(toks, ruido_prensa)
 
 # Comprobar corpus con y sin stopwords
-sum(ntoken(toks))      # 1.262.037 palabras con stopwords
-sum(ntoken(toks_sin))  # 655.204 sin ellas: se fue el 51,92%
+sum(ntoken(toks))      # 1.262.994 palabras con stopwords
+sum(ntoken(toks_sin))  # 655.161 sin ellas: se fue el 51%
 
 # ---- PASO 5 · La matriz documento-término ----------------------------
 # Filas = párrafos, columnas = palabras, celdas = cuántas veces aparece.
@@ -122,7 +120,7 @@ dtm <- dfm(toks_sin)
 dtm                                   # dimensiones y porcentaje de ceros
 
 dtm <- dfm_trim(dtm, min_termfreq = 5)   # palabras que aparecen 5+ veces
-dtm #la nueva matriz tiene 10.749 features
+dtm #la nueva matriz tiene 10.751 features
 
 #Para mirar la matriz dtm por dentro:
 dtm[1:5, 1:8]           # las 5 primeras filas y 8 primeras columnas
@@ -178,4 +176,6 @@ textstat_collocations(toks_sin, size = 2, min_count = 10) |> head(15) #atención
 
 # ---- 7. Guardar corpus procesado ------------------------------------------------
 saveRDS(corp_valido, "input/corpus_prensa_proc.rds")
+saveRDS(toks,        "input/toks_prensa.rds")
+saveRDS(toks_sin,    "input/toks_sin_prensa.rds")
 saveRDS(dtm, "input/dtm_prensa_urbana.rds")
